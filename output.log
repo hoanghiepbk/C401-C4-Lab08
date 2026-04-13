@@ -1,0 +1,155 @@
+============================================================
+Sprint 4: Evaluation & Scorecard
+============================================================
+
+Loading test questions from: /home/lam/code/C401-C4-Lab08/data/test_questions.json
+Found 10 questions
+  [q01] SLA xử lý ticket P1 là bao lâu? (SLA)
+  [q02] Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày? (Refund)
+  [q03] Ai phải phê duyệt để cấp quyền Level 3? (Access Control)
+  ...
+
+--- Run Baseline ---
+Note: requires built index + OPENAI_API_KEY to run judge scoring.
+
+======================================================================
+Chạy scorecard: baseline_dense
+Config: {'retrieval_mode': 'dense', 'top_k_search': 10, 'top_k_select': 3, 'use_rerank': False, 'label': 'baseline_dense'}
+======================================================================
+
+[q01] SLA xử lý ticket P1 là bao lâu?
+  Answer: SLA xử lý ticket P1 là 4 giờ [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 4
+
+[q02] Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày?
+  Answer: Khách hàng có thể yêu cầu hoàn tiền trong vòng 7 ngày làm việc kể từ thời điểm xác nhận đơn hàng [1]...
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 5
+
+[q03] Ai phải phê duyệt để cấp quyền Level 3?
+  Answer: Để cấp quyền Level 3, cần phê duyệt của Line Manager, IT Admin và IT Security [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 5
+
+[q04] Sản phẩm kỹ thuật số có được hoàn tiền không?
+  Answer: Sản phẩm kỹ thuật số không được hoàn tiền theo quy định ngoại lệ [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 4
+
+[q05] Tài khoản bị khóa sau bao nhiêu lần đăng nhập sai?
+  Answer: Tài khoản bị khóa sau 5 lần đăng nhập sai liên tiếp. Để mở khóa, liên hệ IT Helpdesk hoặc tự reset q...
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 5
+
+[q06] Escalation trong sự cố P1 diễn ra như thế nào?
+  Answer: Escalation trong sự cố P1 diễn ra như sau: Nếu không có phản hồi trong 10 phút, ticket sẽ tự động es...
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 4
+
+[q07] Approval Matrix để cấp quyền hệ thống là tài liệu nào?
+  Answer: Tài liệu "Approval Matrix để cấp quyền hệ thống" là "QUY TRÌNH KIỂM SOÁT TRUY CẬP HỆ THỐNG (ACCESS C...
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 5
+
+[q08] Nhân viên được làm remote tối đa mấy ngày mỗi tuần?
+  Answer: Nhân viên có thể làm remote tối đa 2 ngày mỗi tuần [2]....
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 4
+
+[q09] ERR-403-AUTH là lỗi gì và cách xử lý?
+  Answer: Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này....
+  Faithful: 5 | Relevant: 2 | Recall: None | Complete: 2
+
+[q10] Nếu cần hoàn tiền khẩn cấp cho khách hàng VIP, quy trình có khác không?
+  Answer: Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này....
+  Faithful: 5 | Relevant: 2 | Recall: 1 | Complete: 3
+
+Average faithfulness: 5.00
+
+Average relevance: 4.40
+
+Average context_recall: 2.78
+
+Average completeness: 4.10
+
+Scorecard saved to: /home/lam/code/C401-C4-Lab08/results/scorecard_baseline.md
+
+--- Run Variant ---
+
+======================================================================
+Chạy scorecard: variant_hybrid_rrf
+Config: {'retrieval_mode': 'hybrid', 'top_k_search': 10, 'top_k_select': 3, 'use_rerank': False, 'label': 'variant_hybrid_rrf'}
+======================================================================
+
+[q01] SLA xử lý ticket P1 là bao lâu?
+  Answer: SLA xử lý ticket P1 là 4 giờ [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 4
+
+[q02] Khách hàng có thể yêu cầu hoàn tiền trong bao nhiêu ngày?
+  Answer: Khách hàng có thể yêu cầu hoàn tiền trong vòng 7 ngày làm việc kể từ thời điểm xác nhận đơn hàng [1]...
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 5
+
+[q03] Ai phải phê duyệt để cấp quyền Level 3?
+  Answer: Để cấp quyền Level 3, cần phê duyệt của Line Manager, IT Admin và IT Security [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 5
+
+[q04] Sản phẩm kỹ thuật số có được hoàn tiền không?
+  Answer: Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này....
+  Faithful: 5 | Relevant: 2 | Recall: 1 | Complete: 2
+
+[q05] Tài khoản bị khóa sau bao nhiêu lần đăng nhập sai?
+  Answer: Tài khoản bị khóa sau 5 lần đăng nhập sai liên tiếp [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 5
+
+[q06] Escalation trong sự cố P1 diễn ra như thế nào?
+  Answer: Escalation trong sự cố P1 diễn ra như sau: Nếu không có phản hồi trong 10 phút, ticket sẽ tự động es...
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 4
+
+[q07] Approval Matrix để cấp quyền hệ thống là tài liệu nào?
+  Answer: Tài liệu "Approval Matrix để cấp quyền hệ thống" là "QUY TRÌNH KIỂM SOÁT TRUY CẬP HỆ THỐNG (ACCESS C...
+  Faithful: 5 | Relevant: 5 | Recall: 5 | Complete: 5
+
+[q08] Nhân viên được làm remote tối đa mấy ngày mỗi tuần?
+  Answer: Nhân viên được làm remote tối đa 2 ngày mỗi tuần [1]....
+  Faithful: 5 | Relevant: 5 | Recall: 1 | Complete: 4
+
+[q09] ERR-403-AUTH là lỗi gì và cách xử lý?
+  Answer: Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này....
+  Faithful: 5 | Relevant: 1 | Recall: None | Complete: 1
+
+[q10] Nếu cần hoàn tiền khẩn cấp cho khách hàng VIP, quy trình có khác không?
+  Answer: Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này....
+  Faithful: 5 | Relevant: 4 | Recall: 1 | Complete: 4
+
+Average faithfulness: 5.00
+
+Average relevance: 4.20
+
+Average context_recall: 2.78
+
+Average completeness: 3.90
+
+Variant scorecard saved to: /home/lam/code/C401-C4-Lab08/results/scorecard_variant.md
+
+======================================================================
+A/B Comparison: Baseline vs Variant
+======================================================================
+Metric                 Baseline    Variant    Delta
+-------------------------------------------------------
+faithfulness               5.00       5.00    +0.00
+relevance                  4.40       4.20    -0.20
+context_recall             2.78       2.78    +0.00
+completeness               4.10       3.90    -0.20
+
+Câu    Baseline F/R/Rc/C      Variant F/R/Rc/C       Better?   
+-----------------------------------------------------------------
+q01    5/5/5/4                5/5/5/4                Tie       
+q02    5/5/1/5                5/5/1/5                Tie       
+q03    5/5/5/5                5/5/5/5                Tie       
+q04    5/5/1/4                5/2/1/2                Baseline  
+q05    5/5/1/5                5/5/1/5                Tie       
+q06    5/5/5/4                5/5/5/4                Tie       
+q07    5/5/5/5                5/5/5/5                Tie       
+q08    5/5/1/4                5/5/1/4                Tie       
+q09    5/2/None/2             5/1/None/1             Baseline  
+q10    5/2/1/3                5/4/1/4                Variant   
+
+Kết quả đã lưu vào: /home/lam/code/C401-C4-Lab08/results/ab_comparison.csv
+
+
+Sprint 4 notes (after running the pipeline):
+  - Fill docs/architecture.md and docs/tuning-log.md with your real results.
+  - Complete individual report in reports/individual/.

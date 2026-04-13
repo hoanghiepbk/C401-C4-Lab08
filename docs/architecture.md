@@ -54,7 +54,7 @@
 | Metric | Average Score |
 |--------|--------------|
 | Faithfulness | 5.00/5 |
-| Relevance | 4.30/5 |
+| Relevance | 4.20/5 |
 | Context Recall | 2.78/5 |
 | Completeness | 3.90/5 |
 
