@@ -467,27 +467,57 @@ def rag_answer(
             "config": config,
         }
 
+    # Giữ danh sách candidates gốc để fallback khi LLM "abstain nhầm".
+    # Lý do: đôi khi top_k_select quá nhỏ, phần evidence quan trọng nằm ở vị trí 4-8,
+    # khiến model nghĩ "không đủ dữ liệu" dù corpus có thông tin.
+    all_candidates = candidates
+
     if use_rerank:
-        candidates = rerank(query, candidates, top_k=top_k_select)
+        selected = rerank(query, all_candidates, top_k=top_k_select)
     else:
-        candidates = candidates[:top_k_select]
+        selected = all_candidates[:top_k_select]
 
     if verbose:
-        print(f"[RAG] After select/rerank: {len(candidates)} chunks")
+        print(f"[RAG] After select/rerank: {len(selected)} chunks")
 
-    context_block = build_context_block(candidates)
+    context_block = build_context_block(selected)
     prompt = build_grounded_prompt(query, context_block)
     answer = call_llm(prompt)
 
+    # Fallback 1 lần nếu model trả abstain nhưng ta còn nhiều candidate chưa đưa vào context.
+    abstain_msg = "Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này."
+    if (
+        answer.strip() == abstain_msg
+        and len(all_candidates) > len(selected)
+        and len(selected) < 8
+    ):
+        retry_k = min(max(len(selected) * 2, 6), 8, len(all_candidates))
+        if use_rerank:
+            retry_selected = rerank(query, all_candidates, top_k=retry_k)
+        else:
+            retry_selected = all_candidates[:retry_k]
+
+        if verbose:
+            print(f"[RAG] Retry with wider context: {retry_k} chunks")
+
+        retry_context = build_context_block(retry_selected)
+        retry_prompt = build_grounded_prompt(query, retry_context)
+        retry_answer = call_llm(retry_prompt)
+
+        # Chấp nhận retry nếu nó không còn abstain (hoặc đơn giản là khác câu cũ).
+        if retry_answer.strip() != abstain_msg:
+            selected = retry_selected
+            answer = retry_answer
+
     sources = sorted(
-        {c["metadata"].get("source", "unknown") for c in candidates if c.get("metadata")}
+        {c["metadata"].get("source", "unknown") for c in selected if c.get("metadata")}
     )
 
     return {
         "query": query,
         "answer": answer,
         "sources": sources,
-        "chunks_used": candidates,
+        "chunks_used": selected,
         "config": config,
     }
 
