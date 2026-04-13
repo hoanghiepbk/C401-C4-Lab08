@@ -135,40 +135,33 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
         "effective_date": "unknown",
         "access": "internal",
     }
-    content_lines = []
-    header_done = False
+    content_lines: List[str] = []
 
-    # Regex patterns for metadata
-    patterns = {
-        "source": re.compile(r"^Source:\s*(.*)", re.IGNORECASE),
-        "department": re.compile(r"^Department:\s*(.*)", re.IGNORECASE),
-        "effective_date": re.compile(r"^Effective Date:\s*(.*)", re.IGNORECASE),
-        "access": re.compile(r"^Access:\s*(.*)", re.IGNORECASE),
+    # Parse metadata toàn văn bản trước để không bị lệ thuộc thứ tự/title dòng đầu.
+    meta_extractors = {
+        "source": re.compile(r"^\s*Source:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE),
+        "department": re.compile(r"^\s*Department:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE),
+        "effective_date": re.compile(
+            r"^\s*Effective Date:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE
+        ),
+        "access": re.compile(r"^\s*Access:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE),
     }
+    for key, pattern in meta_extractors.items():
+        match = pattern.search(raw_text)
+        if match:
+            metadata[key] = match.group(1).strip()
 
+    # Loại các dòng metadata khỏi content, giữ nguyên title/section cho chunking.
+    meta_line_patterns = [
+        re.compile(r"^\s*Source:\s*.+$", re.IGNORECASE),
+        re.compile(r"^\s*Department:\s*.+$", re.IGNORECASE),
+        re.compile(r"^\s*Effective Date:\s*.+$", re.IGNORECASE),
+        re.compile(r"^\s*Access:\s*.+$", re.IGNORECASE),
+    ]
     for line in lines:
-        stripped = line.strip()
-        if not header_done:
-            # Check for metadata matches
-            matched = False
-            for key, pattern in patterns.items():
-                match = pattern.match(stripped)
-                if match:
-                    metadata[key] = match.group(1).strip()
-                    matched = True
-                    break
-            
-            if matched:
-                continue
-            
-            # Start of content markers
-            if stripped.startswith("===") or (stripped and stripped.isupper()):
-                header_done = True
-                content_lines.append(line)
-            elif stripped == "":
-                continue
-        else:
-            content_lines.append(line)
+        if any(p.match(line) for p in meta_line_patterns):
+            continue
+        content_lines.append(line)
 
     cleaned_text = "\n".join(content_lines)
     # Normalize whitespace: max 2 consecutive newlines, remove trailing whitespace
