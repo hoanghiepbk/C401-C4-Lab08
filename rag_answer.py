@@ -512,6 +512,21 @@ def compare_retrieval_strategies(query: str) -> None:
         except Exception as e:
             print(f"Lỗi: {e}")
 
+def compare_retrieval_strategies_expansion(query: str) -> None:
+    """In nhanh query_transform none vs expansion cho cùng một query."""
+    print(f"\n{'=' * 60}")
+    print(f"Query: {query}")
+    print("=" * 60)
+
+    for query_transform in ("none", "expansion"):
+        print(f"\n--- query_transform: {query_transform} ---")
+        try:
+            result = rag_answer(query, retrieval_mode=query_transform, verbose=False)
+            print(f"Answer: {result['answer']}")
+            print(f"Sources: {result['sources']}")
+        except Exception as e:
+            print(f"Lỗi: {e}")
+
 
 # =============================================================================
 # MAIN
@@ -539,9 +554,10 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"Lỗi: {e}")
 
-    print("\n--- Variant hybrid (Sprint 3) ---")
+    print("\n--- Variant hybrid/ query_transform expansion (Sprint 3) ---")
     try:
         q = "Approval Matrix để cấp quyền hệ thống là tài liệu nào?"
         compare_retrieval_strategies(q)
+        compare_retrieval_strategies_expansion(q)
     except Exception as e:
         print(f"Lỗi: {e}")
