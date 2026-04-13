@@ -105,61 +105,68 @@ def _sanitize_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
 
 def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
     """
-    Tách metadata chuẩn (Source, Department, Effective Date, Access) và phần nội dung.
+    Preprocess một tài liệu: extract metadata từ header và làm sạch nội dung.
 
-    Cấu trúc file mẫu:
-      - Vài dòng tiêu đề (bỏ qua trước khối metadata)
-      - Các dòng Key: Value
-      - Tuỳ file: dòng ghi chú (ví dụ alias tên tài liệu) — được giữ lại trong nội dung
-      - Các section bắt đầu bằng '=== ... ==='
+    Args:
+        raw_text: Toàn bộ nội dung file text
+        filepath: Đường dẫn file để làm source mặc định
+
+    Returns:
+        Dict chứa:
+          - "text": nội dung đã clean
+          - "metadata": dict với source, department, effective_date, access
     """
     lines = raw_text.strip().split("\n")
-
-    # Tách phần trước section đầu tiên (để không đánh mất đoạn giữa header và ===)
-    first_section_idx = next(
-        (i for i, ln in enumerate(lines) if ln.strip().startswith("===")),
-        len(lines),
-    )
-    head, body = lines[:first_section_idx], lines[first_section_idx:]
-
-    metadata: Dict[str, Any] = {
+    metadata = {
         "source": filepath,
         "section": "",
         "department": "unknown",
         "effective_date": "unknown",
         "access": "internal",
     }
+    content_lines = []
+    header_done = False
 
-    meta_prefixes = ("Source:", "Department:", "Effective Date:", "Access:")
-    for line in head:
-        if line.startswith("Source:"):
-            metadata["source"] = line.replace("Source:", "", 1).strip()
-        elif line.startswith("Department:"):
-            metadata["department"] = line.replace("Department:", "", 1).strip()
-        elif line.startswith("Effective Date:"):
-            metadata["effective_date"] = line.replace("Effective Date:", "", 1).strip()
-        elif line.startswith("Access:"):
-            metadata["access"] = line.replace("Access:", "", 1).strip()
+    # Regex patterns for metadata
+    patterns = {
+        "source": re.compile(r"^Source:\s*(.*)", re.IGNORECASE),
+        "department": re.compile(r"^Department:\s*(.*)", re.IGNORECASE),
+        "effective_date": re.compile(r"^Effective Date:\s*(.*)", re.IGNORECASE),
+        "access": re.compile(r"^Access:\s*(.*)", re.IGNORECASE),
+    }
 
-    # Dòng tiêu đề đứng trước dòng Source — bỏ qua; phần còn lại (ghi chú, v.v.) giữ
-    first_meta_idx = next(
-        (i for i, ln in enumerate(head) if ln.startswith("Source:")),
-        0,
-    )
-    preamble_lines: List[str] = []
-    for i, line in enumerate(head):
-        if i < first_meta_idx and line.strip():
-            continue
-        if any(line.startswith(p) for p in meta_prefixes):
-            continue
-        if line.strip() == "":
-            continue
-        preamble_lines.append(line)
+    for line in lines:
+        stripped = line.strip()
+        if not header_done:
+            # Check for metadata matches
+            matched = False
+            for key, pattern in patterns.items():
+                match = pattern.match(stripped)
+                if match:
+                    metadata[key] = match.group(1).strip()
+                    matched = True
+                    break
+            
+            if matched:
+                continue
+            
+            # Start of content markers
+            if stripped.startswith("===") or (stripped and stripped.isupper()):
+                header_done = True
+                content_lines.append(line)
+            elif stripped == "":
+                continue
+        else:
+            content_lines.append(line)
 
-    cleaned_text = "\n".join(preamble_lines + body)
-    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text)
+    cleaned_text = "\n".join(content_lines)
+    # Normalize whitespace: max 2 consecutive newlines, remove trailing whitespace
+    cleaned_text = re.sub(r"\n{3,}", "\n\n", cleaned_text).strip()
 
-    return {"text": cleaned_text, "metadata": metadata}
+    return {
+        "text": cleaned_text,
+        "metadata": metadata,
+    }
 
 
 # =============================================================================
@@ -168,40 +175,50 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
 
 
 def chunk_document(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Chia theo heading === ... === trước; section dài thì cắt theo đoạn + overlap."""
+    """
+    Chunk một tài liệu đã preprocess thành danh sách các chunk nhỏ.
+
+    Args:
+        doc: Dict với "text" và "metadata" (output của preprocess_document)
+
+    Returns:
+        List các Dict, mỗi dict là một chunk.
+    """
     text = doc["text"]
     base_metadata = doc["metadata"].copy()
-    chunks: List[Dict[str, Any]] = []
+    chunks = []
 
-    # Tách giữ lại delimiter để biết ranh giới section (có thể xuống dòng trong heading)
-    sections = re.split(r"(===[\s\S]*?===)", text)
+    # Split theo heading pattern "=== ... ==="
+    # Dùng regex để bắt cả heading để biết section đang ở đâu
+    parts = re.split(r"(===.*?===)", text)
+
     current_section = "General"
     current_section_text = ""
 
-    for part in sections:
-        stripped = part.strip()
-        if stripped.startswith("===") and stripped.endswith("==="):
+    for part in parts:
+        if re.match(r"===.*?===", part):
+            # Lưu section trước (nếu có nội dung)
             if current_section_text.strip():
-                chunks.extend(
-                    _split_by_size(
-                        current_section_text.strip(),
-                        base_metadata=base_metadata,
-                        section=current_section,
-                    )
+                section_chunks = _split_by_size(
+                    current_section_text.strip(),
+                    base_metadata=base_metadata,
+                    section=current_section,
                 )
-            current_section = stripped.strip("=").strip()
+                chunks.extend(section_chunks)
+            # Bắt đầu section mới
+            current_section = part.strip("= ").strip()
             current_section_text = ""
         else:
             current_section_text += part
 
+    # Lưu section cuối cùng
     if current_section_text.strip():
-        chunks.extend(
-            _split_by_size(
-                current_section_text.strip(),
-                base_metadata=base_metadata,
-                section=current_section,
-            )
+        section_chunks = _split_by_size(
+            current_section_text.strip(),
+            base_metadata=base_metadata,
+            section=current_section,
         )
+        chunks.extend(section_chunks)
 
     return chunks
 
@@ -214,70 +231,43 @@ def _split_by_size(
     overlap_chars: int = CHUNK_OVERLAP * 4,
 ) -> List[Dict[str, Any]]:
     """
-    Ghép paragraph (\n\n) tới gần chunk_chars; giữ overlap giữa hai chunk liên tiếp.
-
-    Paragraph cực dài: cắt cửa sổ ký tự, bước nhảy (window - overlap).
+    Helper: Split text dài thành chunks bằng cách ghép paragraph.
     """
-    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
-    if not paragraphs:
-        return []
-
-    raw_chunks: List[str] = []
-    buf: List[str] = []
-    buf_len = 0
-
-    def flush_buf() -> None:
-        nonlocal buf, buf_len
-        if buf:
-            raw_chunks.append("\n\n".join(buf))
-            buf = []
-            buf_len = 0
-
-    for para in paragraphs:
-        if len(para) > chunk_chars:
-            flush_buf()
-            start = 0
-            while start < len(para):
-                end = min(start + chunk_chars, len(para))
-                raw_chunks.append(para[start:end])
-                if end >= len(para):
-                    break
-                nxt = end - overlap_chars
-                start = nxt if nxt > start else end
+    paragraphs = text.split("\n\n")
+    chunks = []
+    
+    current_chunk_text = ""
+    
+    for i, para in enumerate(paragraphs):
+        para = para.strip()
+        if not para:
+            continue
+            
+        # Nếu cộng thêm paragraph này mà vượt quá chunk_chars, thì lưu chunk hiện tại
+        if current_chunk_text and len(current_chunk_text) + len(para) > chunk_chars:
+            chunks.append({
+                "text": current_chunk_text.strip(),
+                "metadata": {**base_metadata, "section": section},
+            })
+            
+            # Tính toán overlap: lấy đoạn cuối của chunk hiện tại
+            # Hoặc đơn giản hơn: lấy paragraph trước đó làm overlap nếu nó không quá dài
+            overlap_text = current_chunk_text[-overlap_chars:] if len(current_chunk_text) > overlap_chars else current_chunk_text
+            current_chunk_text = overlap_text + "\n\n" + para
         else:
-            extra = len(para) + (2 if buf else 0)
-            if buf_len + extra <= chunk_chars:
-                buf.append(para)
-                buf_len += extra
+            if current_chunk_text:
+                current_chunk_text += "\n\n" + para
             else:
-                flush_buf()
-                buf = [para]
-                buf_len = len(para)
+                current_chunk_text = para
+                
+    # Thêm chunk cuối cùng
+    if current_chunk_text:
+        chunks.append({
+            "text": current_chunk_text.strip(),
+            "metadata": {**base_metadata, "section": section},
+        })
 
-    flush_buf()
-
-    if not raw_chunks:
-        raw_chunks = [text[:chunk_chars]]
-
-    # Overlap: chunk kế tiếp bắt đầu bằng đuôi chunk trước (chuẩn RAG)
-    merged_texts: List[str] = [raw_chunks[0]]
-    for i in range(1, len(raw_chunks)):
-        prev = merged_texts[-1]
-        tail = prev[-overlap_chars:] if len(prev) > overlap_chars else prev
-        nxt = raw_chunks[i]
-        combined = tail + "\n\n" + nxt
-        if len(combined) > chunk_chars * 2:
-            merged_texts.append(nxt)
-        else:
-            merged_texts.append(combined)
-
-    return [
-        {
-            "text": t,
-            "metadata": {**base_metadata, "section": section, "chunk_part": idx},
-        }
-        for idx, t in enumerate(merged_texts)
-    ]
+    return chunks
 
 
 # =============================================================================
