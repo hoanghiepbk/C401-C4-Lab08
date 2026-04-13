@@ -1,6 +1,6 @@
 # Báo Cáo Cá Nhân — Lab Day 08: RAG Pipeline
 
-**Họ và tên:** Phạm Hữu Hoàng Hiệp  
+**Họ và tên:** Phạm Hữu Hoàng Hiệp - 2A202600415
 **Vai trò trong nhóm:** Tech Lead  
 **Ngày nộp:** 2026-04-13  
 **Độ dài yêu cầu:** 500–800 từ
