@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
@@ -28,6 +29,14 @@ def _load_questions(path: Path) -> List[Dict[str, Any]]:
 
 
 def main() -> None:
+    # Windows console đôi khi dùng encoding không phải UTF-8 (ví dụ cp1252),
+    # khiến print tiếng Việt bị UnicodeEncodeError. Ta ép stdout/stderr về utf-8 nếu có thể.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
     p = argparse.ArgumentParser()
     p.add_argument("--input", default="data/grading_questions.json", help="Path tới grading_questions.json")
     p.add_argument("--mode", default="hybrid", choices=["dense", "sparse", "hybrid"], help="retrieval_mode")
@@ -76,7 +85,7 @@ def main() -> None:
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
-    print(f"Đã lưu log: {output_path} ({len(out)} câu)")
+    print(f"Saved log: {output_path} ({len(out)} questions)")
 
 
 if __name__ == "__main__":

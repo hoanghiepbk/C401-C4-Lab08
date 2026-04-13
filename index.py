@@ -6,6 +6,12 @@ embed (OpenAI) → lưu ChromaDB (cosine).
 
 Yêu cầu lab: mỗi chunk có metadata tối thiểu source, section, effective_date;
 embedding query sau này phải dùng cùng model với index (text-embedding-3-small).
+
+Gợi ý đọc file theo luồng:
+- `preprocess_document()` -> (text đã clean, metadata chuẩn)
+- `chunk_document()` / `_split_by_size()` -> danh sách chunk nhỏ + overlap
+- `get_embedding()` -> biến text -> vector (OpenAI hoặc local)
+- `build_index()` -> upsert toàn bộ chunk vào ChromaDB để `rag_answer.py` query
 """
 
 from __future__ import annotations
@@ -33,11 +39,16 @@ DOCS_DIR = Path(__file__).parent / "data" / "docs"
 CHROMA_DB_DIR = Path(__file__).parent / "chroma_db"
 COLLECTION_NAME = "rag_lab"
 
-# Chunk: ước lượng token ≈ len(chars)/4 (gợi ý slide 300–500 tokens)
+# Chunking:
+# - LLM làm việc với token, nhưng ở lab ta thao tác trên ký tự.
+# - Heuristic phổ biến: ~4 ký tự ~ 1 token (xấp xỉ; VN/EN khác nhau).
+# - Với lab nhỏ, chọn chunk vừa phải để retrieval “trúng đoạn” và prompt không bị dài.
 CHUNK_SIZE = 400
 CHUNK_OVERLAP = 80
 
-# OpenAI Embeddings — giữ đồng bộ với rag_answer.retrieve_dense()
+# Embedding model:
+# - Bắt buộc: query embedding (trong `rag_answer.py`) phải dùng cùng model/provider với indexing,
+#   nếu không similarity search sẽ sai (vector space khác nhau).
 EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
 
@@ -48,7 +59,7 @@ EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
 @lru_cache(maxsize=1)
 def _openai_client():
-    """Khởi tạo client OpenAI một lần cho cả index và (nếu cần) các module khác."""
+    # Tạo client một lần để tránh overhead và dễ kiểm soát cấu hình.
     from openai import OpenAI
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -78,6 +89,9 @@ def get_embedding(text: str) -> List[float]:
     if not text:
         raise ValueError("get_embedding: text rỗng.")
 
+    # Provider switch (để lab có thể chạy theo 2 hướng):
+    # - openai: dùng OpenAI embeddings (cần OPENAI_API_KEY)
+    # - local: dùng sentence-transformers chạy local (không cần key, nhưng query cũng phải dùng cùng model)
     provider = os.getenv("EMBEDDING_PROVIDER", "openai")
 
     if provider == "openai":
@@ -95,8 +109,10 @@ def get_embedding(text: str) -> List[float]:
 
 def _sanitize_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Chroma chỉ chấp nhận metadata dạng str / int / float / bool.
-    Chuẩn hóa để tránh lỗi upsert và để filter ổn định.
+    Chroma chỉ chấp nhận metadata dạng scalar: str / int / float / bool.
+    Ta “sanitize” để:
+    - tránh lỗi upsert (ví dụ metadata lỡ là list/dict),
+    - đảm bảo filter/inspect sau này ổn định.
     """
     out: Dict[str, Any] = {}
     for key, val in meta.items():
@@ -135,40 +151,33 @@ def preprocess_document(raw_text: str, filepath: str) -> Dict[str, Any]:
         "effective_date": "unknown",
         "access": "internal",
     }
-    content_lines = []
-    header_done = False
+    content_lines: List[str] = []
 
-    # Regex patterns for metadata
-    patterns = {
-        "source": re.compile(r"^Source:\s*(.*)", re.IGNORECASE),
-        "department": re.compile(r"^Department:\s*(.*)", re.IGNORECASE),
-        "effective_date": re.compile(r"^Effective Date:\s*(.*)", re.IGNORECASE),
-        "access": re.compile(r"^Access:\s*(.*)", re.IGNORECASE),
+    # Parse metadata toàn văn bản trước để không bị lệ thuộc thứ tự/title dòng đầu.
+    meta_extractors = {
+        "source": re.compile(r"^\s*Source:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE),
+        "department": re.compile(r"^\s*Department:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE),
+        "effective_date": re.compile(
+            r"^\s*Effective Date:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE
+        ),
+        "access": re.compile(r"^\s*Access:\s*(.+?)\s*$", re.IGNORECASE | re.MULTILINE),
     }
+    for key, pattern in meta_extractors.items():
+        match = pattern.search(raw_text)
+        if match:
+            metadata[key] = match.group(1).strip()
 
+    # Loại các dòng metadata khỏi content, giữ nguyên title/section cho chunking.
+    meta_line_patterns = [
+        re.compile(r"^\s*Source:\s*.+$", re.IGNORECASE),
+        re.compile(r"^\s*Department:\s*.+$", re.IGNORECASE),
+        re.compile(r"^\s*Effective Date:\s*.+$", re.IGNORECASE),
+        re.compile(r"^\s*Access:\s*.+$", re.IGNORECASE),
+    ]
     for line in lines:
-        stripped = line.strip()
-        if not header_done:
-            # Check for metadata matches
-            matched = False
-            for key, pattern in patterns.items():
-                match = pattern.match(stripped)
-                if match:
-                    metadata[key] = match.group(1).strip()
-                    matched = True
-                    break
-            
-            if matched:
-                continue
-            
-            # Start of content markers
-            if stripped.startswith("===") or (stripped and stripped.isupper()):
-                header_done = True
-                content_lines.append(line)
-            elif stripped == "":
-                continue
-        else:
-            content_lines.append(line)
+        if any(p.match(line) for p in meta_line_patterns):
+            continue
+        content_lines.append(line)
 
     cleaned_text = "\n".join(content_lines)
     # Normalize whitespace: max 2 consecutive newlines, remove trailing whitespace
