@@ -413,6 +413,7 @@ def rag_answer(
     top_k_search: int = TOP_K_SEARCH,
     top_k_select: int = TOP_K_SELECT,
     use_rerank: bool = False,
+    skip_generation: bool = False,
     verbose: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -479,6 +480,19 @@ def rag_answer(
 
     if verbose:
         print(f"[RAG] After select/rerank: {len(selected)} chunks")
+
+    # Cho phép "retrieve-only" để phục vụ grading/judge mà không tốn LLM call.
+    if skip_generation:
+        sources = sorted(
+            {c["metadata"].get("source", "unknown") for c in selected if c.get("metadata")}
+        )
+        return {
+            "query": query,
+            "answer": "",
+            "sources": sources,
+            "chunks_used": selected,
+            "config": config,
+        }
 
     context_block = build_context_block(selected)
     prompt = build_grounded_prompt(query, context_block)

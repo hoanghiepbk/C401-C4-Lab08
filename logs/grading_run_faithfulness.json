@@ -1,0 +1,102 @@
+[
+  {
+    "id": "gq01",
+    "question": "SLA xử lý ticket P1 đã thay đổi như thế nào so với phiên bản trước?",
+    "retrieval_mode": "hybrid",
+    "answer": "SLA xử lý ticket P1 đã thay đổi từ 6 giờ xuống 4 giờ so với phiên bản trước [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in chunk [1], which states that the SLA for P1 resolution was updated from 6 hours to 4 hours in version 2026.1."
+    }
+  },
+  {
+    "id": "gq02",
+    "question": "Khi làm việc remote, tôi phải dùng VPN và được kết nối trên tối đa bao nhiêu thiết bị?",
+    "retrieval_mode": "hybrid",
+    "answer": "Bạn được kết nối VPN trên tối đa 2 thiết bị cùng lúc [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in the context, specifically stating that each account can connect to the VPN on a maximum of 2 devices simultaneously, which is directly supported by the retrieved chunk [1]."
+    }
+  },
+  {
+    "id": "gq03",
+    "question": "Đơn hàng mua trong chương trình Flash Sale và đã kích hoạt sản phẩm có được hoàn tiền không?",
+    "retrieval_mode": "hybrid",
+    "answer": "Đơn hàng đã áp dụng mã giảm giá đặc biệt theo chương trình khuyến mãi Flash Sale và sản phẩm đã được kích hoạt sẽ không được hoàn tiền [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in the context regarding the exceptions for refunds, specifically mentioning that orders with special discount codes from Flash Sale promotions and products that have been activated are not eligible for refunds."
+    }
+  },
+  {
+    "id": "gq04",
+    "question": "Nếu chọn nhận store credit thay vì hoàn tiền, tôi được bao nhiêu phần trăm so với số tiền gốc?",
+    "retrieval_mode": "hybrid",
+    "answer": "Nếu chọn nhận store credit thay vì hoàn tiền, bạn sẽ nhận được 110% so với số tiền gốc [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in chunk [1], which states that customers can choose to receive store credit equivalent to 110% of the original amount if they opt for store credit instead of a refund."
+    }
+  },
+  {
+    "id": "gq05",
+    "question": "Contractor từ bên ngoài công ty có thể được cấp quyền Admin Access không? Nếu có, cần bao nhiêu ngày và có yêu cầu đặc biệt gì?",
+    "retrieval_mode": "hybrid",
+    "answer": "Có, contractor từ bên ngoài công ty có thể được cấp quyền Admin Access. Quy trình yêu cầu mất tối đa 1 ngày làm việc để phê duyệt từ Line Manager, sau đó IT Admin sẽ kiểm tra compliance và cấp quyền [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in the retrieved chunks, specifically that contractors can be granted Admin Access and outlines the approval process involving the Line Manager and IT Admin as described in Section 3."
+    }
+  },
+  {
+    "id": "gq06",
+    "question": "Lúc 2 giờ sáng xảy ra sự cố P1, on-call engineer cần cấp quyền tạm thời cho một engineer xử lý incident. Quy trình cụ thể như thế nào và quyền này tồn tại bao lâu?",
+    "retrieval_mode": "hybrid",
+    "answer": "Quy trình cụ thể để cấp quyền tạm thời cho engineer xử lý incident trong sự cố P1 là: On-call IT Admin có thể cấp quyền tạm thời (tối đa 24 giờ) sau khi được Tech Lead phê duyệt bằng lời. Quyền này sẽ tự động bị thu hồi sau 24 giờ nếu không có ticket chính thức. Mọi quyền tạm thời phải được ghi log vào hệ thống Security Audit [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately summarizes the process for granting temporary permissions to an engineer during a P1 incident, as detailed in the provided context. It correctly states the approval requirement from the Tech Lead, the maximum duration of the temporary permissions, the automatic revocation after 24 hours without a formal ticket, and the logging requirement in the Security Audit system."
+    }
+  },
+  {
+    "id": "gq07",
+    "question": "Công ty sẽ phạt bao nhiêu nếu team IT vi phạm cam kết SLA P1?",
+    "retrieval_mode": "hybrid",
+    "answer": "Không đủ dữ liệu trong tài liệu để trả lời câu hỏi này.",
+    "judge": {
+      "score": 5,
+      "reason": "The answer correctly states that there is insufficient data in the provided context to answer the question about who is responsible for renewing software licenses, as the relevant information is present in the chunks."
+    }
+  },
+  {
+    "id": "gq08",
+    "question": "Nhân viên phải báo trước bao nhiêu ngày để xin nghỉ phép năm? Con số này có giống với số ngày cần giấy tờ khi nghỉ ốm không?",
+    "retrieval_mode": "hybrid",
+    "answer": "Nhân viên phải báo trước ít nhất 3 ngày làm việc để xin nghỉ phép năm [2]. Số ngày này không giống với số ngày cần giấy tờ khi nghỉ ốm, vì nghỉ ốm yêu cầu thông báo trước 9:00 sáng ngày nghỉ và cần giấy tờ y tế nếu nghỉ trên 3 ngày liên tiếp [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in the retrieved chunks. It correctly states the requirement for employees to notify at least 3 working days in advance for annual leave [2] and distinguishes it from the sick leave policy, which requires notification by 9:00 AM on the day of absence and documentation for absences longer than 3 days [1]."
+    }
+  },
+  {
+    "id": "gq09",
+    "question": "Mật khẩu tài khoản công ty cần đổi định kỳ không? Nếu có, hệ thống sẽ nhắc nhở trước bao nhiêu ngày và đổi qua đâu?",
+    "retrieval_mode": "hybrid",
+    "answer": "Có. Mật khẩu phải được thay đổi mỗi 90 ngày. Hệ thống sẽ nhắc nhở 7 ngày trước khi hết hạn [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in the context regarding the requirement to change passwords every 90 days and the system's reminder 7 days prior to expiration."
+    }
+  },
+  {
+    "id": "gq10",
+    "question": "Chính sách hoàn tiền hiện tại áp dụng cho đơn hàng đặt trước ngày 01/02/2026 không?",
+    "retrieval_mode": "hybrid",
+    "answer": "Chính sách hoàn tiền hiện tại không áp dụng cho đơn hàng đặt trước ngày 01/02/2026, mà sẽ áp dụng theo chính sách hoàn tiền phiên bản 3 [1].",
+    "judge": {
+      "score": 5,
+      "reason": "The answer accurately reflects the information provided in the context, specifically stating that the current refund policy does not apply to orders placed before 01/02/2026 and refers to the previous version of the refund policy, which is consistent with the details in chunk [1]."
+    }
+  }
+]
