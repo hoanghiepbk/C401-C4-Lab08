@@ -12,9 +12,11 @@ from __future__ import annotations
 import json
 import csv
 import os
+import sys
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
+import re
 
 from rag_answer import rag_answer
 
@@ -209,9 +211,10 @@ def score_context_recall(
     retrieved_files = {r.split("/")[-1] for r in retrieved_sources}
     retrieved_slugs = {_slug_filename(r) for r in retrieved_sources}
 
-    # TODO: Kiểm tra matching theo partial path (vì source paths có thể khác format)
     found = 0
-    missing = []
+    missing: List[str] = []
+    found_matches: Dict[str, str] = {}
+
     for expected in expected_sources:
         exp_norm = _norm_source(expected)
         exp_file = exp_norm.split("/")[-1]
@@ -224,20 +227,22 @@ def score_context_recall(
         )
         if matched:
             found += 1
+            found_matches[expected] = exp_file or exp_slug
         else:
             missing.append(expected)
 
-    recall = found / len(expected_sources) if expected_sources else 0
+    recall = found / len(expected_sources) if expected_sources else 0.0
 
-    # Convert recall (0..1) sang thang 1..5, clamp để không ra 0
-    score_1_5 = int(round(recall * 5))
-    score_1_5 = max(1, min(5, score_1_5))
+    # Map recall [0,1] -> score [1,5]
+    score_1_5 = 1 + round(recall * 4)
+    score_1_5 = max(1, min(5, int(score_1_5)))
 
     return {
         "score": score_1_5,
         "recall": recall,
         "found": found,
         "missing": missing,
+        "found_matches": found_matches,
         "notes": f"Retrieved: {found}/{len(expected_sources)} expected sources" +
                  (f". Missing: {missing}" if missing else ""),
     }
@@ -475,7 +480,7 @@ def generate_scorecard_summary(results: List[Dict], label: str) -> str:
     """
     Tạo báo cáo tóm tắt scorecard dạng markdown.
 
-    TODO Sprint 4: Cập nhật template này theo kết quả thực tế của nhóm.
+    Tạo báo cáo tóm tắt scorecard dạng markdown (dùng được để dán vào report).
     """
     metrics = ["faithfulness", "relevance", "context_recall", "completeness"]
     averages = {}
@@ -485,10 +490,26 @@ def generate_scorecard_summary(results: List[Dict], label: str) -> str:
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    n_total = len(results)
+    n_scored = sum(1 for r in results if any(r.get(m) is not None for m in metrics))
+
+    # Identify weakest questions (by sum of available metrics)
+    def _row_total(r: Dict[str, Any]) -> float:
+        vals = [(r.get(m) or 0) for m in metrics]
+        return float(sum(vals))
+
+    weakest = sorted(results, key=_row_total)[: min(5, n_total)]
+
+    # Retrieval pain points
+    recall_misses = [r for r in results if (r.get("context_recall") is not None and (r.get("context_recall") or 0) <= 2)]
+
     md = f"""# Scorecard: {label}
 Generated: {timestamp}
 
 ## Summary
+
+Total questions: {n_total}
+Questions scored: {n_scored}
 
 | Metric | Average Score |
 |--------|--------------|
@@ -496,6 +517,20 @@ Generated: {timestamp}
     for metric, avg in averages.items():
         avg_str = f"{avg:.2f}/5" if avg else "N/A"
         md += f"| {metric.replace('_', ' ').title()} | {avg_str} |\n"
+
+    if weakest:
+        md += "\n## Weakest Questions (by total score)\n\n"
+        md += "| ID | Category | Total(F+R+Rc+C) | Query |\n"
+        md += "|----|----------|----------------|-------|\n"
+        for r in weakest:
+            md += f"| {r['id']} | {r.get('category','')} | {_row_total(r):.0f} | {str(r.get('query',''))[:120]} |\n"
+
+    if recall_misses:
+        md += "\n## Retrieval Issues (low context recall)\n\n"
+        md += "| ID | Recall Score | Recall Notes |\n"
+        md += "|----|-------------|-------------|\n"
+        for r in recall_misses[:10]:
+            md += f"| {r['id']} | {r.get('context_recall','N/A')} | {str(r.get('context_recall_notes',''))[:120]} |\n"
 
     md += "\n## Per-Question Results\n\n"
     md += "| ID | Category | Faithful | Relevant | Recall | Complete | Notes |\n"
@@ -514,16 +549,23 @@ Generated: {timestamp}
 # =============================================================================
 
 if __name__ == "__main__":
+    # Avoid Windows cp1252 console crashes when printing Vietnamese paths/text.
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
     print("=" * 60)
     print("Sprint 4: Evaluation & Scorecard")
     print("=" * 60)
 
     # Kiểm tra test questions
-    print(f"\nLoading test questions từ: {TEST_QUESTIONS_PATH}")
+    print(f"\nLoading test questions from: {TEST_QUESTIONS_PATH}")
     try:
         with open(TEST_QUESTIONS_PATH, "r", encoding="utf-8") as f:
             test_questions = json.load(f)
-        print(f"Tìm thấy {len(test_questions)} câu hỏi")
+        print(f"Found {len(test_questions)} questions")
 
         # In preview
         for q in test_questions[:3]:
@@ -531,15 +573,15 @@ if __name__ == "__main__":
         print("  ...")
 
     except FileNotFoundError:
-        print("Không tìm thấy file test_questions.json!")
+        print("Cannot find test_questions.json!")
         test_questions = []
 
     baseline_results: List[Dict[str, Any]] = []
     variant_results: List[Dict[str, Any]] = []
 
     # --- Chạy Baseline ---
-    print("\n--- Chạy Baseline ---")
-    print("Lưu ý: Cần index + OPENAI_API_KEY để chạy scorecard.")
+    print("\n--- Run Baseline ---")
+    print("Note: requires built index + OPENAI_API_KEY to run judge scoring.")
     try:
         baseline_results = run_scorecard(
             config=BASELINE_CONFIG,
@@ -552,17 +594,17 @@ if __name__ == "__main__":
         baseline_md = generate_scorecard_summary(baseline_results, "baseline_dense")
         scorecard_path = RESULTS_DIR / "scorecard_baseline.md"
         scorecard_path.write_text(baseline_md, encoding="utf-8")
-        print(f"\nScorecard lưu tại: {scorecard_path}")
+        print(f"\nScorecard saved to: {scorecard_path}")
 
     except NotImplementedError:
-        print("Pipeline chưa implement. Hoàn thành Sprint 2 trước.")
+        print("Pipeline not implemented. Finish Sprint 2 first.")
         baseline_results = []
     except Exception as exc:
-        print(f"Baseline scorecard lỗi: {exc}")
+        print(f"Baseline scorecard error: {exc}")
         baseline_results = []
 
     # --- Chạy Variant (hybrid RRF — Sprint 3) ---
-    print("\n--- Chạy Variant ---")
+    print("\n--- Run Variant ---")
     try:
         RESULTS_DIR.mkdir(parents=True, exist_ok=True)
         variant_results = run_scorecard(
@@ -572,9 +614,9 @@ if __name__ == "__main__":
         )
         variant_md = generate_scorecard_summary(variant_results, VARIANT_CONFIG["label"])
         (RESULTS_DIR / "scorecard_variant.md").write_text(variant_md, encoding="utf-8")
-        print(f"\nScorecard variant lưu tại: {RESULTS_DIR / 'scorecard_variant.md'}")
+        print(f"\nVariant scorecard saved to: {RESULTS_DIR / 'scorecard_variant.md'}")
     except Exception as exc:
-        print(f"Variant scorecard lỗi: {exc}")
+        print(f"Variant scorecard error: {exc}")
 
     # --- A/B Comparison ---
     if baseline_results and variant_results:
@@ -584,6 +626,6 @@ if __name__ == "__main__":
             output_csv="ab_comparison.csv",
         )
 
-    print("\n\nGợi ý Sprint 4 (sau khi chạy xong pipeline):")
-    print("  - Điền docs/architecture.md, docs/tuning-log.md theo kết quả thực tế.")
-    print("  - Hoàn thiện báo cáo cá nhân trong reports/individual/.")
+    print("\n\nSprint 4 notes (after running the pipeline):")
+    print("  - Fill docs/architecture.md and docs/tuning-log.md with your real results.")
+    print("  - Complete individual report in reports/individual/.")

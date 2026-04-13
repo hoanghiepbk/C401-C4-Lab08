@@ -133,7 +133,8 @@ def _load_bm25_corpus() -> Tuple[Any, List[str], List[str], List[Dict[str, Any]]
     from rank_bm25 import BM25Okapi
 
     collection = _get_collection()
-    data = collection.get(include=["documents", "metadatas", "ids"])
+    # Chroma does not accept "ids" inside include; ids are returned by default.
+    data = collection.get(include=["documents", "metadatas"])
     ids = data["ids"] or []
     documents = data["documents"] or []
     metas = data["metadatas"] or []
