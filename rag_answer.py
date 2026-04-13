@@ -521,7 +521,7 @@ def compare_retrieval_strategies_expansion(query: str) -> None:
     for query_transform in ("none", "expansion"):
         print(f"\n--- query_transform: {query_transform} ---")
         try:
-            result = rag_answer(query, retrieval_mode=query_transform, verbose=False)
+            result = rag_answer(query, retrieval_mode="dense", query_transform=query_transform, verbose=False)
             print(f"Answer: {result['answer']}")
             print(f"Sources: {result['sources']}")
         except Exception as e:
