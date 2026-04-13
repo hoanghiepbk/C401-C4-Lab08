@@ -6,6 +6,12 @@ embed (OpenAI) → lưu ChromaDB (cosine).
 
 Yêu cầu lab: mỗi chunk có metadata tối thiểu source, section, effective_date;
 embedding query sau này phải dùng cùng model với index (text-embedding-3-small).
+
+Gợi ý đọc file theo luồng:
+- `preprocess_document()` -> (text đã clean, metadata chuẩn)
+- `chunk_document()` / `_split_by_size()` -> danh sách chunk nhỏ + overlap
+- `get_embedding()` -> biến text -> vector (OpenAI hoặc local)
+- `build_index()` -> upsert toàn bộ chunk vào ChromaDB để `rag_answer.py` query
 """
 
 from __future__ import annotations
@@ -28,11 +34,16 @@ DOCS_DIR = Path(__file__).parent / "data" / "docs"
 CHROMA_DB_DIR = Path(__file__).parent / "chroma_db"
 COLLECTION_NAME = "rag_lab"
 
-# Chunk: ước lượng token ≈ len(chars)/4 (gợi ý slide 300–500 tokens)
+# Chunking:
+# - LLM làm việc với token, nhưng ở lab ta thao tác trên ký tự.
+# - Heuristic phổ biến: ~4 ký tự ~ 1 token (xấp xỉ; VN/EN khác nhau).
+# - Với lab nhỏ, chọn chunk vừa phải để retrieval “trúng đoạn” và prompt không bị dài.
 CHUNK_SIZE = 400
 CHUNK_OVERLAP = 80
 
-# OpenAI Embeddings — giữ đồng bộ với rag_answer.retrieve_dense()
+# Embedding model:
+# - Bắt buộc: query embedding (trong `rag_answer.py`) phải dùng cùng model/provider với indexing,
+#   nếu không similarity search sẽ sai (vector space khác nhau).
 EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
 
@@ -43,7 +54,7 @@ EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
 
 @lru_cache(maxsize=1)
 def _openai_client():
-    """Khởi tạo client OpenAI một lần cho cả index và (nếu cần) các module khác."""
+    # Tạo client một lần để tránh overhead và dễ kiểm soát cấu hình.
     from openai import OpenAI
 
     api_key = os.getenv("OPENAI_API_KEY")
@@ -65,6 +76,9 @@ def get_embedding(text: str) -> List[float]:
     if not text:
         raise ValueError("get_embedding: text rỗng.")
 
+    # Provider switch (để lab có thể chạy theo 2 hướng):
+    # - openai: dùng OpenAI embeddings (cần OPENAI_API_KEY)
+    # - local: dùng sentence-transformers chạy local (không cần key, nhưng query cũng phải dùng cùng model)
     provider = os.getenv("EMBEDDING_PROVIDER", "openai")
 
     if provider == "openai":
@@ -76,6 +90,7 @@ def get_embedding(text: str) -> List[float]:
         return list(response.data[0].embedding)
     else:
         # Option B — Sentence Transformers (chạy local)
+        # Trade-off: không tốn API/token, nhưng phụ thuộc máy và vector space khác OpenAI.
         from sentence_transformers import SentenceTransformer
         model_name = os.getenv("LOCAL_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
         model = SentenceTransformer(model_name)
@@ -84,8 +99,10 @@ def get_embedding(text: str) -> List[float]:
 
 def _sanitize_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Chroma chỉ chấp nhận metadata dạng str / int / float / bool.
-    Chuẩn hóa để tránh lỗi upsert và để filter ổn định.
+    Chroma chỉ chấp nhận metadata dạng scalar: str / int / float / bool.
+    Ta “sanitize” để:
+    - tránh lỗi upsert (ví dụ metadata lỡ là list/dict),
+    - đảm bảo filter/inspect sau này ổn định.
     """
     out: Dict[str, Any] = {}
     for key, val in meta.items():
