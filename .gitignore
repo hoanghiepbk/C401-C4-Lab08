@@ -7,3 +7,5 @@ venv
 .venv/
 .conda/
 .venv/
+.vscode/
+results/

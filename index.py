@@ -59,6 +59,14 @@ def _openai_client():
     return OpenAI(api_key=api_key)
 
 
+@lru_cache(maxsize=1)
+def _local_embedding_model():
+    """Khởi tạo model SentenceTransformer một lần."""
+    from sentence_transformers import SentenceTransformer
+    model_name = os.getenv("LOCAL_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+    return SentenceTransformer(model_name)
+
+
 def get_embedding(text: str) -> List[float]:
     """
     Vector hóa một đoạn text bằng OpenAI Embeddings.
@@ -81,9 +89,7 @@ def get_embedding(text: str) -> List[float]:
         return list(response.data[0].embedding)
     else:
         # Option B — Sentence Transformers (chạy local)
-        from sentence_transformers import SentenceTransformer
-        model_name = os.getenv("LOCAL_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
-        model = SentenceTransformer(model_name)
+        model = _local_embedding_model()
         return model.encode(text).tolist()
 
 
@@ -308,7 +314,11 @@ def build_index(docs_dir: Path = DOCS_DIR, db_dir: Path = CHROMA_DB_DIR) -> None
         print(f"Không tìm thấy file .txt trong {docs_dir}")
         return
 
-    total_chunks = 0
+    all_ids = []
+    all_embeddings = []
+    all_documents = []
+    all_metadatas = []
+
     for filepath in doc_files:
         print(f"  Processing: {filepath.name}")
         raw_text = filepath.read_text(encoding="utf-8")
@@ -319,15 +329,23 @@ def build_index(docs_dir: Path = DOCS_DIR, db_dir: Path = CHROMA_DB_DIR) -> None
             chunk_id = f"{filepath.stem}_{i}"
             emb = get_embedding(chunk["text"])
             meta = _sanitize_metadata(chunk["metadata"])
-            collection.upsert(
-                ids=[chunk_id],
-                embeddings=[emb],
-                documents=[chunk["text"]],
-                metadatas=[meta],
-            )
-            total_chunks += 1
+            
+            all_ids.append(chunk_id)
+            all_embeddings.append(emb)
+            all_documents.append(chunk["text"])
+            all_metadatas.append(meta)
 
-    print(f"\nHoàn thành! Tổng số chunks đã index: {total_chunks}")
+    if all_ids:
+        # Upsert theo batch (Chroma xử lý tốt batch lớn, nhưng ta có thể chia nếu cần)
+        # Ở đây có ~50-100 chunks, upsert 1 lần là ổn.
+        collection.upsert(
+            ids=all_ids,
+            embeddings=all_embeddings,
+            documents=all_documents,
+            metadatas=all_metadatas,
+        )
+
+    print(f"\nHoàn thành! Tổng số chunks đã index: {len(all_ids)}")
     print(f"Collection: {COLLECTION_NAME} | DB: {db_dir}")
 
     # Làm mới cache BM25 trong rag_answer (nếu đã import) để hybrid search khớp corpus mới
