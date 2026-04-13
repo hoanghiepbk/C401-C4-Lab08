@@ -65,12 +65,21 @@ def get_embedding(text: str) -> List[float]:
     if not text:
         raise ValueError("get_embedding: text rỗng.")
 
-    client = _openai_client()
-    response = client.embeddings.create(
-        model=EMBEDDING_MODEL,
-        input=text,
-    )
-    return list(response.data[0].embedding)
+    provider = os.getenv("EMBEDDING_PROVIDER", "openai")
+
+    if provider == "openai":
+        client = _openai_client()
+        response = client.embeddings.create(
+            model=EMBEDDING_MODEL,
+            input=text,
+        )
+        return list(response.data[0].embedding)
+    else:
+        # Option B — Sentence Transformers (chạy local)
+        from sentence_transformers import SentenceTransformer
+        model_name = os.getenv("LOCAL_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
+        model = SentenceTransformer(model_name)
+        return model.encode(text).tolist()
 
 
 def _sanitize_metadata(meta: Dict[str, Any]) -> Dict[str, Any]:
@@ -419,7 +428,7 @@ if __name__ == "__main__":
             print(f"\n  [Chunk {i + 1}] Section: {chunk['metadata']['section']}")
             print(f"  Text: {chunk['text'][:180]}...")
 
-    print("\n--- Build Full Index (cần OPENAI_API_KEY) ---")
+    print("\n--- Build Full Index (EMBEDDING_PROVIDER=local hoặc openai) ---")
     build_index()
     list_chunks(n=3)
     inspect_metadata_coverage()
