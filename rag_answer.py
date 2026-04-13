@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
@@ -47,6 +48,7 @@ def invalidate_bm25_cache() -> None:
 _RERANKER = None
 
 
+@lru_cache(maxsize=1)
 def _openai_client():
     from openai import OpenAI
 

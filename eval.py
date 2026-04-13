@@ -177,18 +177,28 @@ def score_context_recall(
         # Câu hỏi không có expected source (ví dụ: "Không đủ dữ liệu" cases)
         return {"score": None, "recall": None, "notes": "No expected sources"}
 
+    def _norm_source(s: str) -> str:
+        s = (s or "").strip().replace("\\", "/")
+        while "//" in s:
+            s = s.replace("//", "/")
+        return s.lower()
+
     retrieved_sources = {
-        c.get("metadata", {}).get("source", "")
+        _norm_source(c.get("metadata", {}).get("source", ""))
         for c in chunks_used
     }
+    retrieved_sources.discard("")  # tránh nhiễu nếu metadata thiếu source
 
     # TODO: Kiểm tra matching theo partial path (vì source paths có thể khác format)
     found = 0
     missing = []
     for expected in expected_sources:
-        # Kiểm tra partial match (tên file)
-        expected_name = expected.split("/")[-1].replace(".pdf", "").replace(".md", "")
-        matched = any(expected_name.lower() in r.lower() for r in retrieved_sources)
+        exp_norm = _norm_source(expected)
+        exp_file = exp_norm.split("/")[-1]
+        # Ưu tiên: match theo file name exact; fallback: substring (alias đường dẫn)
+        matched = any((r.split("/")[-1] == exp_file) for r in retrieved_sources) or any(
+            exp_file in r for r in retrieved_sources
+        )
         if matched:
             found += 1
         else:
@@ -196,8 +206,12 @@ def score_context_recall(
 
     recall = found / len(expected_sources) if expected_sources else 0
 
+    # Convert recall (0..1) sang thang 1..5, clamp để không ra 0
+    score_1_5 = int(round(recall * 5))
+    score_1_5 = max(1, min(5, score_1_5))
+
     return {
-        "score": round(recall * 5),  # Convert to 1-5 scale
+        "score": score_1_5,
         "recall": recall,
         "found": found,
         "missing": missing,
@@ -386,11 +400,11 @@ def compare_ab(
 
         b_avg = sum(b_scores) / len(b_scores) if b_scores else None
         v_avg = sum(v_scores) / len(v_scores) if v_scores else None
-        delta = (v_avg - b_avg) if (b_avg and v_avg) else None
+        delta = (v_avg - b_avg) if (b_avg is not None and v_avg is not None) else None
 
-        b_str = f"{b_avg:.2f}" if b_avg else "N/A"
-        v_str = f"{v_avg:.2f}" if v_avg else "N/A"
-        d_str = f"{delta:+.2f}" if delta else "N/A"
+        b_str = f"{b_avg:.2f}" if b_avg is not None else "N/A"
+        v_str = f"{v_avg:.2f}" if v_avg is not None else "N/A"
+        d_str = f"{delta:+.2f}" if delta is not None else "N/A"
 
         print(f"{metric:<20} {b_str:>10} {v_str:>10} {d_str:>8}")
 

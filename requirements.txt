@@ -6,7 +6,8 @@ python-dotenv>=1.0.0
 
 # === LLM Providers (chọn ít nhất một) ===
 openai>=1.0.0                    # Option A: OpenAI API
-google-generativeai>=0.5.0       # Option B: Google Gemini
+#
+# Lưu ý: Code hiện tại dùng OpenAI. Nếu muốn Gemini, cần implement thêm trong rag_answer.py.
 
 # === Vector Store ===
 chromadb>=0.5.0                  # Vector database (local, không cần server)
@@ -15,7 +16,7 @@ chromadb>=0.5.0                  # Vector database (local, không cần server)
 # Option A: OpenAI Embeddings (dùng chung API key với LLM)
 # (đã có trong openai package)
 
-# Option B: Sentence Transformers (local, không cần API key)
+# Option B: Sentence Transformers (dùng cho rerank; embedding local chưa implement)
 sentence-transformers>=2.7.0     # Model: paraphrase-multilingual-MiniLM-L12-v2
 
 # === Sprint 3: Sparse/Hybrid Retrieval ===
