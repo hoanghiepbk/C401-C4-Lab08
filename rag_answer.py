@@ -276,8 +276,77 @@ def rerank(
 
 
 def transform_query(query: str, strategy: str = "expansion") -> List[str]:
-    """Giữ interface lab; có thể mở rộng LLM expansion sau này."""
-    return [query]
+    """
+    Sinh biến thể truy vấn để tăng recall (đặc biệt alias/viết tắt/mã lỗi).
+    Trả về danh sách đã loại trùng và giữ nguyên thứ tự ưu tiên.
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+
+    if strategy == "none":
+        return [q]
+
+    out: List[str] = [q]
+    lower_q = q.lower()
+
+    # Alias/domain terms cho bộ tài liệu lab (VN + EN)
+    alias_map = {
+        "Approval Matrix": ["approval matrix", "ACCESS CONTROL SOP", "ma trận phê duyệt"],
+        "sla": ["service level agreement", "cam kết mức dịch vụ"],
+        "hoàn tiền": ["refund", "refund policy", "chính sách hoàn tiền"],
+        "helpdesk": ["it helpdesk", "hỗ trợ kỹ thuật", "it support"],
+        "cấp quyền": ["access control", "phân quyền", "approval matrix"],
+        "level 3": ["l3", "quyền level 3", "mức quyền 3"],
+        "ticket": ["incident", "request", "phiếu hỗ trợ"],
+        "p1": ["priority 1", "mức ưu tiên 1", "độ ưu tiên p1"],
+        "p2": ["priority 2", "mức ưu tiên 2", "độ ưu tiên p2"],
+        "p3": ["priority 3", "mức ưu tiên 3", "độ ưu tiên p3"],
+        "p4": ["priority 4", "mức ưu tiên 4", "độ ưu tiên p4"],
+    }
+
+    for term, expansions in alias_map.items():
+        if term in lower_q:
+            out.extend(expansions)
+
+    # Bắt mã lỗi/chuỗi kỹ thuật để thêm truy vấn chính xác dạng token
+    # Ví dụ: ERR-403-AUTH -> "ERR 403 AUTH", "error 403 auth"
+    code_like = re.findall(r"[A-Za-z]{2,}-\d{2,}(?:-[A-Za-z0-9]+)*", q)
+    for code in code_like:
+        spaced = code.replace("-", " ")
+        out.append(spaced)
+        out.append(f"error {spaced.lower()}")
+
+    # Câu hỏi thời lượng/SLA hay gặp -> thêm signal retrieval theo intent
+    if any(k in lower_q for k in ("bao lâu", "thời gian", "trong bao nhiêu", "deadline")):
+        out.append("thời gian xử lý")
+        out.append("response time")
+
+    # Khử trùng lặp theo lowercase, giữ thứ tự
+    deduped: List[str] = []
+    seen = set()
+    for item in out:
+        key = item.strip().lower()
+        if key and key not in seen:
+            seen.add(key)
+            deduped.append(item.strip())
+    return deduped
+
+
+def _merge_query_variants_results(
+    all_results: List[List[Dict[str, Any]]],
+) -> List[Dict[str, Any]]:
+    """
+    Gộp kết quả retrieval từ nhiều biến thể query theo max score mỗi chunk id.
+    """
+    best_by_id: Dict[str, Dict[str, Any]] = {}
+    for results in all_results:
+        for row in results:
+            cid = row["id"]
+            old = best_by_id.get(cid)
+            if old is None or float(row.get("score", 0.0)) > float(old.get("score", 0.0)):
+                best_by_id[cid] = row
+    return sorted(best_by_id.values(), key=lambda x: float(x.get("score", 0.0)), reverse=True)
 
 
 # =============================================================================
@@ -340,6 +409,7 @@ def call_llm(prompt: str) -> str:
 def rag_answer(
     query: str,
     retrieval_mode: str = "dense",
+    query_transform: str = "none",
     top_k_search: int = TOP_K_SEARCH,
     top_k_select: int = TOP_K_SELECT,
     use_rerank: bool = False,
@@ -352,23 +422,34 @@ def rag_answer(
     """
     config = {
         "retrieval_mode": retrieval_mode,
+        "query_transform": query_transform,
         "top_k_search": top_k_search,
         "top_k_select": top_k_select,
         "use_rerank": use_rerank,
     }
 
     # --- Retrieve ---
-    if retrieval_mode == "dense":
-        candidates = retrieve_dense(query, top_k=top_k_search)
-    elif retrieval_mode == "sparse":
-        candidates = retrieve_sparse(query, top_k=top_k_search)
-    elif retrieval_mode == "hybrid":
-        candidates = retrieve_hybrid(query, top_k=top_k_search)
-    else:
-        raise ValueError(f"retrieval_mode không hợp lệ: {retrieval_mode}")
+    query_variants = transform_query(query, strategy=query_transform)
+    if not query_variants:
+        query_variants = [query]
+
+    retrieved_per_variant: List[List[Dict[str, Any]]] = []
+    for qv in query_variants:
+        if retrieval_mode == "dense":
+            retrieved = retrieve_dense(qv, top_k=top_k_search)
+        elif retrieval_mode == "sparse":
+            retrieved = retrieve_sparse(qv, top_k=top_k_search)
+        elif retrieval_mode == "hybrid":
+            retrieved = retrieve_hybrid(qv, top_k=top_k_search)
+        else:
+            raise ValueError(f"retrieval_mode không hợp lệ: {retrieval_mode}")
+        retrieved_per_variant.append(retrieved)
+
+    candidates = _merge_query_variants_results(retrieved_per_variant)
 
     if verbose:
         print(f"\n[RAG] Query: {query}")
+        print(f"[RAG] Query variants ({len(query_variants)}): {query_variants}")
         print(f"[RAG] Retrieved {len(candidates)} candidates (mode={retrieval_mode})")
         for i, c in enumerate(candidates[:3]):
             print(
