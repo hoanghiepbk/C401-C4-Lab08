@@ -42,25 +42,26 @@ _________________
 
 ## 4. Phân tích một câu hỏi trong scorecard (150-200 từ)
 
-> Chọn 1 câu hỏi trong test_questions.json mà nhóm bạn thấy thú vị.
-> Phân tích:
-> - Baseline trả lời đúng hay sai? Điểm như thế nào?
-> - Lỗi nằm ở đâu: indexing / retrieval / generation?
-> - Variant có cải thiện không? Tại sao có/không?
+Đánh giá q07: Lỗi truy xuất tên tài liệu (Alias)
 
-**Câu hỏi:** ___________
+Vấn đề (Baseline): Dense Retrieval bị trượt vì ưu tiên "ngữ nghĩa" (mô tả quy trình) thay vì "từ khóa" (tên cũ/alias của tài liệu).
 
-**Phân tích:**
+Kỳ vọng ở Hybrid: Kết hợp thêm BM25 để "bắt" chính xác keyword (ví dụ: "Approval Matrix"), giúp kéo đúng tài liệu vào top-K.
 
+Action Items (Khắc phục triệt để):
+
+Dùng Hybrid Retrieval: Kết hợp Dense + BM25.
+
+Tối ưu Chunking/Metadata: Đảm bảo Tiêu đề (tên mới) và Alias (tên cũ) không bị cắt rời, phải nằm trong cùng một chunk hoặc được gán vào metadata.
+
+Siết lại Prompt: Ép LLM phải chỉ ra "tên hiện tại" của tài liệu dựa trên evidence truy xuất được.
 _________________
 
 ---
 
 ## 5. Nếu có thêm thời gian, tôi sẽ làm gì? (50-100 từ)
 
-> 1-2 cải tiến cụ thể bạn muốn thử.
-> Không phải "làm tốt hơn chung chung" mà phải là:
-> "Tôi sẽ thử X vì kết quả eval cho thấy Y."
+Mình sẽ làm 2 cải tiến cụ thể. (1) Thêm caching cho LLM-as-judge theo khóa (query+answer+context+expected) để chạy lại scorecard nhanh và ổn định hơn, giảm chi phí và tránh thay đổi điểm do judge variability. (2) Bổ sung một ngưỡng “retrieval đủ mạnh” trước khi gọi LLM (ví dụ dựa trên top score hoặc diversity nguồn) để giảm hallucination ở các câu không có thông tin trong docs; vì rubric grading phạt nặng nếu bịa, nên abstain đúng còn quan trMìnhọng hơn trả lời dài nhưng thiếu chứng cứ.
 
 _________________
 
