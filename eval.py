@@ -183,11 +183,31 @@ def score_context_recall(
             s = s.replace("//", "/")
         return s.lower()
 
+    def _slug_filename(path: str) -> str:
+        """
+        Chuẩn hóa tên file để match giữa các định dạng:
+        - refund-v4.pdf vs refund_v4.txt
+        - access-control-sop.md vs access_control_sop.txt
+        Giữ lại chữ + số, bỏ extension và ký tự phân tách.
+        """
+        p = _norm_source(path).split("/")[-1]
+        # bỏ extension phổ biến
+        for ext in (".pdf", ".md", ".txt"):
+            if p.endswith(ext):
+                p = p[: -len(ext)]
+                break
+        # chuẩn hóa dấu ngăn cách và bỏ ký tự không phải chữ/số
+        p = p.replace("_", "-")
+        p = "".join(ch for ch in p if ch.isalnum())
+        return p
+
     retrieved_sources = {
         _norm_source(c.get("metadata", {}).get("source", ""))
         for c in chunks_used
     }
     retrieved_sources.discard("")  # tránh nhiễu nếu metadata thiếu source
+    retrieved_files = {r.split("/")[-1] for r in retrieved_sources}
+    retrieved_slugs = {_slug_filename(r) for r in retrieved_sources}
 
     # TODO: Kiểm tra matching theo partial path (vì source paths có thể khác format)
     found = 0
@@ -195,9 +215,12 @@ def score_context_recall(
     for expected in expected_sources:
         exp_norm = _norm_source(expected)
         exp_file = exp_norm.split("/")[-1]
+        exp_slug = _slug_filename(expected)
         # Ưu tiên: match theo file name exact; fallback: substring (alias đường dẫn)
-        matched = any((r.split("/")[-1] == exp_file) for r in retrieved_sources) or any(
-            exp_file in r for r in retrieved_sources
+        matched = (
+            (exp_file in retrieved_files)
+            or (exp_slug in retrieved_slugs and exp_slug != "")
+            or any(exp_file in r for r in retrieved_sources)
         )
         if matched:
             found += 1
