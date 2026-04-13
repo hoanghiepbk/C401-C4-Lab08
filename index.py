@@ -17,8 +17,13 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from dotenv import load_dotenv
+import logging
+from transformers import logging as transformers_logging
 
 load_dotenv()
+
+# Tắt cảnh báo từ thư viện transformers
+transformers_logging.set_verbosity_error()
 
 # =============================================================================
 # CẤU HÌNH
